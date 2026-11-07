@@ -9,6 +9,7 @@ use train_sim_core::validator::Validator;
 
 use crate::event::TrainArrival;
 use crate::network::RailwayNetwork;
+use crate::viz::{self, Epoch, Recorder, VizKind};
 use crate::{Message, WorkersSignal, event};
 
 /// Extra ticks added to the max tick when a zone schedules an event near its current limit.
@@ -22,6 +23,8 @@ pub struct WorkerResult {
     pub trace: Vec<TraceEntry>,
     /// Optional zone stats, as `(zone_name, log)`.
     pub statistics: Option<(String, Vec<StatisticsEntry>)>,
+    /// Recorded visualization events (empty without the `viz` feature).
+    pub viz: viz::Events,
 }
 
 // Taken from Slug (`train-sim-slug`'s `TrackState`).
@@ -64,6 +67,8 @@ pub struct SharedContext {
     pub validator: Arc<dyn Validator>,
     /// Max tick zone starts with
     pub initial_max_tick: Tick,
+    /// Time origin for recorded visualization events.
+    pub epoch: Epoch,
 }
 
 pub struct ZoneWorker {
@@ -104,6 +109,9 @@ pub struct ZoneWorker {
     initial_max_tick: Tick,
 
     validator: Arc<dyn Validator>,
+
+    /// Records events for the visualization page (no-op without `viz`).
+    viz: Recorder,
 }
 
 impl ZoneWorker {
@@ -121,6 +129,7 @@ impl ZoneWorker {
             graph,
             validator,
             initial_max_tick,
+            epoch,
         } = shared;
 
         let own_stations = network.zone_to_stations[zone_id].clone();
@@ -168,6 +177,7 @@ impl ZoneWorker {
             remaining_despawns,
             initial_max_tick,
             validator,
+            viz: Recorder::new(zone_id, epoch),
         }
     }
 
@@ -215,14 +225,21 @@ impl ZoneWorker {
 
         // A zone that owns no train's destination will never despawn anything, so it reports immediately
         if self.remaining_despawns == 0 {
+            self.viz.record(now, VizKind::Finished);
             let _ = self.done.send(WorkersSignal::Finished);
         }
 
         'main: loop {
             // Start if loop we check if any messages are there to be recieved
             while let Ok(message) = self.receiver.try_recv() {
-                if Self::handle_message(message, &mut arrivals, &mut promised_until, &mut max_tick)
-                {
+                if Self::handle_message(
+                    message,
+                    now,
+                    &mut self.viz,
+                    &mut arrivals,
+                    &mut promised_until,
+                    &mut max_tick,
+                ) {
                     break 'main;
                 }
             }
@@ -269,10 +286,14 @@ impl ZoneWorker {
             }
 
             // Wait for the next message or shutdown, as local trains are all processed
+            self.viz.record(now, VizKind::Blocked);
             match self.receiver.recv() {
                 Ok(message) => {
+                    self.viz.record(now, VizKind::Unblocked);
                     if Self::handle_message(
                         message,
+                        now,
+                        &mut self.viz,
                         &mut arrivals,
                         &mut promised_until,
                         &mut max_tick,
@@ -290,24 +311,38 @@ impl ZoneWorker {
             (zone_name, s.log)
         });
 
-        WorkerResult { trace, statistics }
+        WorkerResult {
+            trace,
+            statistics,
+            viz: self.viz.into_events(),
+        }
     }
 
     /// This Handles the messages. IF the message is a Shutdown message, it returns true,
     ///  otherwise updates the promises or arrival list and outputs false.
     fn handle_message(
         message: Message,
+        now: Tick,
+        viz: &mut Recorder,
         arrivals: &mut BinaryHeap<TrainArrival>,
         promised_until: &mut [Tick],
         max_tick: &mut Tick,
     ) -> bool {
         match message {
             Message::TrainHandoff {
+                from_zone,
                 train_id,
                 arrival_tick,
                 station_id,
-                ..
             } => {
+                viz.record(
+                    now,
+                    VizKind::HandoffRecv {
+                        train: train_id,
+                        from_zone,
+                        arrive: arrival_tick,
+                    },
+                );
                 arrivals.push(TrainArrival {
                     tick: arrival_tick,
                     train: train_id,
@@ -318,6 +353,7 @@ impl ZoneWorker {
                 false
             }
             Message::Promise { from_zone, until } => {
+                viz.record(now, VizKind::PromiseRecv { from_zone, until });
                 if until > promised_until[from_zone] {
                     promised_until[from_zone] = until;
                 }
@@ -326,15 +362,19 @@ impl ZoneWorker {
 
             // This is the only message that can raise the max tick
             Message::MaxTick(tick) => {
+                viz.record(now, VizKind::MaxTickRecv { tick });
                 *max_tick = (*max_tick).max(tick);
                 false
             }
-            Message::Shutdown => true,
+            Message::Shutdown => {
+                viz.record(now, VizKind::ShutdownRecv);
+                true
+            }
         }
     }
 
     /// Send updated promises to outgoing neighbors based on current tracks.
-    fn send_promises(&self, now: Tick, last_sent: &mut HashMap<ZoneId, Tick>) {
+    fn send_promises(&mut self, now: Tick, last_sent: &mut HashMap<ZoneId, Tick>) {
         for (neighbor_zone, sender) in &self.outgoing {
             let earliest = self
                 .own_stations
@@ -347,6 +387,13 @@ impl ZoneWorker {
             let Some(until) = earliest else { continue };
             let previous = last_sent.get(neighbor_zone).copied().unwrap_or(0);
             if until > previous {
+                self.viz.record(
+                    now,
+                    VizKind::PromiseSend {
+                        to_zone: *neighbor_zone,
+                        until,
+                    },
+                );
                 let _ = sender.send(Message::Promise {
                     from_zone: self.zone_id,
                     until,
@@ -393,6 +440,14 @@ impl ZoneWorker {
                 train_count_delta = -1;
             }
 
+            self.viz.record(
+                now,
+                VizKind::Despawn {
+                    train: train_id,
+                    station: current_station,
+                },
+            );
+
             // Report to main when the last train destined for this zone has
             // despawned
             self.remaining_despawns = self
@@ -400,6 +455,7 @@ impl ZoneWorker {
                 .checked_sub(1)
                 .expect("zone despawned more trains than it owns destinations for");
             if self.remaining_despawns == 0 {
+                self.viz.record(now, VizKind::Finished);
                 let _ = self.done.send(WorkersSignal::Finished);
             }
         } else {
@@ -427,9 +483,22 @@ impl ZoneWorker {
             let track_state = &mut self.track_states[current_station][track];
             // One distance unit + the maximum between the time that the train
             // arrived, and when the track gets free.
-            let arrival_tick = Tick::max(now, track_state.occupied_until) + track_state.distance;
+            let depart_tick = Tick::max(now, track_state.occupied_until);
+            let arrival_tick = depart_tick + track_state.distance;
             track_state.occupied_until = arrival_tick;
             let next_station = track_state.destination;
+
+            self.viz.record(
+                now,
+                VizKind::Depart {
+                    train: train_id,
+                    from: current_station,
+                    to: next_station,
+                    ready: now,
+                    depart: depart_tick,
+                    arrive: arrival_tick,
+                },
+            );
 
             // Raise the max tick for the event we just scheduled. This also
             // helps local pushes, so neighbors don't stall when our limit rises.
@@ -438,6 +507,7 @@ impl ZoneWorker {
                 // Raise our own limit right away; main only ever raises the
                 // global one to at least this, so it cannot end up lower.
                 *max_tick = wanted;
+                self.viz.record(now, VizKind::ExtendMaxTick { wanted });
                 let _ = self.done.send(WorkersSignal::ExtendMaxTick(wanted));
             }
 
@@ -458,6 +528,14 @@ impl ZoneWorker {
             {
                 // Not in Slug: hand the train off to the destination zone's
                 // worker instead of enqueuing it
+                self.viz.record(
+                    now,
+                    VizKind::HandoffSend {
+                        train: train_id,
+                        to_zone: next_zone,
+                        arrive: arrival_tick,
+                    },
+                );
                 let _ = sender.send(Message::TrainHandoff {
                     from_zone: self.zone_id,
                     train_id,

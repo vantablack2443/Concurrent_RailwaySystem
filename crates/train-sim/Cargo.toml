@@ -9,3 +9,8 @@ clap = { version = "4.3.0", features = ["derive"] }
 train-sim-core = { path = "../train-sim-core" }
 train-sim-rocket = { path = "../train-sim-rocket" }
 train-sim-slug = { path = "../train-sim-slug" }
+serde_json = { version = "1.0.96", optional = true }
+
+[features]
+# Enables `--viz-out` to record events for the visualization page.
+viz = ["train-sim-rocket/viz", "dep:serde_json"]

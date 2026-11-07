@@ -2,6 +2,38 @@
 
 Reference implementation and template for the concurrent programming project 2026.
 
+## Visualization 🗺️
+
+**Live page: https://vantablack2443.github.io/Concurrent_RailwaySystem/**
+
+An interactive replay that shows how the concurrent (Rocket) simulation works:
+
+- a map with zones, stations and tracks, and trains moving, queuing for busy tracks and arriving,
+- one clock badge per zone thread showing its own local tick at the same moment,
+- a wall-clock timeline per thread: working vs. blocked, train handoffs, promises and max-tick broadcasts,
+- a log of the messages exchanged between threads,
+- a six-step guided tour, and a Slug vs Rocket comparison (same output, runtime).
+
+It replays a run recorded with the `viz` cargo feature, which makes every zone worker log its events
+into a thread-local buffer. The feature is off by default, so the normal build and `launch()` are unchanged.
+
+| Command | What it does |
+|---|---|
+| `just viz-record` | Records `scenarios/viz/island.json` and `europe_500` into `site/data/*.viz.json` |
+| `just viz-bench` | Times Slug vs Rocket, checks their outputs match, writes `site/data/bench.json` |
+| `just viz-serve` | Serves the page at http://localhost:8000 |
+
+The recording can also be done by hand:
+
+```bash
+cargo run --release -p train-sim --features viz -- \
+  --scenario scenarios/viz/island.json --out out.json --viz-out site/data/island.viz.json
+```
+
+The page lives in `site/` (plain HTML, CSS and JavaScript modules, no build step). On every push to
+`main`, `.github/workflows/pages.yml` runs the tests, checks the `viz` build compiles and deploys
+`site/` to GitHub Pages (Settings → Pages → Source: *GitHub Actions*).
+
 ## Structure
 
 This project is structured as follows:
@@ -12,6 +44,8 @@ This project is structured as follows:
   - `train-sim-rocket/`: **Your Rust concurrent implementation goes here**.
   - `train-sim-slug/`: Sequential reference implementation.
   - `train-sim-tests/`: Public tests and testing infrastructure.
+- `site/`: The visualization page (see above), with recorded data in `site/data/`.
+- `scripts/viz_bench.py`: Slug vs Rocket benchmark for the page.
 - `src/main/java/cp26/`: Java source code of the project.
   - `scenario/`: Data structures representing a scenario.
   - `output/`: Data structures for writing the simulation output.
@@ -21,7 +55,7 @@ This project is structured as follows:
   - `validator/`: The validator interface.
   - `Simulation.java`: Implements the `main` method.
 - `src/test/java/cp26/`: Public tests for the project.
-- `scenarios/`: Some sample scenarios.
+- `scenarios/`: Some sample scenarios; `scenarios/viz/` has the island scenario for the page.
 
 We initialized the `project.toml` according to your language preferences, but in case you want to switch the programming language, it is possible there. If you implement the bonus, also enable the `bonus-implemented` flag there.
 

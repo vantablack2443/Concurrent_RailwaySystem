@@ -3,5 +3,10 @@ name = "train-sim-rocket"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+# Records worker events for the visualization page. Off by default.
+viz = ["dep:serde_json"]
+
 [dependencies]
 train-sim-core = { path = "../train-sim-core" }
+serde_json = { version = "1.0.96", optional = true }
