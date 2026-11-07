@@ -1,0 +1,11 @@
+[package]
+name = "train-sim"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+clap = { version = "4.3.0", features = ["derive"] }
+train-sim-core = { path = "../train-sim-core" }
+train-sim-rocket = { path = "../train-sim-rocket" }
+train-sim-slug = { path = "../train-sim-slug" }
