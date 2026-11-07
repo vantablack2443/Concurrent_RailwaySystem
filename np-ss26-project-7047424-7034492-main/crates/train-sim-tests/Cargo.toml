@@ -1,0 +1,10 @@
+[package]
+name = "train-sim-tests"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+train-sim-core = { path = "../train-sim-core" }
+train-sim-slug = { path = "../train-sim-slug" }
+train-sim-rocket = { path = "../train-sim-rocket" }

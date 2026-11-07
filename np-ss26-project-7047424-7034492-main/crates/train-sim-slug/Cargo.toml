@@ -1,0 +1,7 @@
+[package]
+name = "train-sim-slug"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+train-sim-core = { path = "../train-sim-core" }
