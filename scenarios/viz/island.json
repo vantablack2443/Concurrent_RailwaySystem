@@ -1,0 +1,450 @@
+{
+  "name": "Island",
+  "gridSize": {
+    "x": 100,
+    "y": 60
+  },
+  "parameters": {
+    "penalty": 1.3
+  },
+  "statQueries": [
+    "Northvale",
+    "Harbor",
+    "Central",
+    "Eastmarch",
+    "Highlands"
+  ],
+  "trace": true,
+  "connections": {
+    "Frostford": [
+      {
+        "destination": "Pinecrest",
+        "distance": 6
+      },
+      {
+        "destination": "Millbrook",
+        "distance": 10
+      }
+    ],
+    "Pinecrest": [
+      {
+        "destination": "Frostford",
+        "distance": 6
+      },
+      {
+        "destination": "Northgate",
+        "distance": 5
+      }
+    ],
+    "Northgate": [
+      {
+        "destination": "Pinecrest",
+        "distance": 5
+      },
+      {
+        "destination": "Central",
+        "distance": 6
+      },
+      {
+        "destination": "Eastport",
+        "distance": 14
+      }
+    ],
+    "Saltmere": [
+      {
+        "destination": "Harbor Quay",
+        "distance": 5
+      },
+      {
+        "destination": "Lowtide",
+        "distance": 5
+      },
+      {
+        "destination": "Millbrook",
+        "distance": 6
+      }
+    ],
+    "Harbor Quay": [
+      {
+        "destination": "Saltmere",
+        "distance": 5
+      },
+      {
+        "destination": "Lowtide",
+        "distance": 6
+      }
+    ],
+    "Lowtide": [
+      {
+        "destination": "Harbor Quay",
+        "distance": 6
+      },
+      {
+        "destination": "Saltmere",
+        "distance": 5
+      },
+      {
+        "destination": "Kingsgate",
+        "distance": 10
+      }
+    ],
+    "Millbrook": [
+      {
+        "destination": "Central",
+        "distance": 4
+      },
+      {
+        "destination": "Frostford",
+        "distance": 10
+      },
+      {
+        "destination": "Saltmere",
+        "distance": 6
+      }
+    ],
+    "Central": [
+      {
+        "destination": "Millbrook",
+        "distance": 4
+      },
+      {
+        "destination": "Ridgeway",
+        "distance": 4
+      },
+      {
+        "destination": "Kingsgate",
+        "distance": 4
+      },
+      {
+        "destination": "Northgate",
+        "distance": 6
+      }
+    ],
+    "Ridgeway": [
+      {
+        "destination": "Central",
+        "distance": 4
+      },
+      {
+        "destination": "Kingsgate",
+        "distance": 5
+      },
+      {
+        "destination": "Marrow",
+        "distance": 7
+      }
+    ],
+    "Kingsgate": [
+      {
+        "destination": "Central",
+        "distance": 4
+      },
+      {
+        "destination": "Ridgeway",
+        "distance": 5
+      },
+      {
+        "destination": "Lowtide",
+        "distance": 10
+      },
+      {
+        "destination": "Glenmoor",
+        "distance": 7
+      }
+    ],
+    "Eastport": [
+      {
+        "destination": "Marrow",
+        "distance": 5
+      },
+      {
+        "destination": "Northgate",
+        "distance": 14
+      }
+    ],
+    "Marrow": [
+      {
+        "destination": "Eastport",
+        "distance": 5
+      },
+      {
+        "destination": "Ashby",
+        "distance": 6
+      },
+      {
+        "destination": "Ridgeway",
+        "distance": 7
+      }
+    ],
+    "Ashby": [
+      {
+        "destination": "Marrow",
+        "distance": 6
+      },
+      {
+        "destination": "Cairn",
+        "distance": 6
+      }
+    ],
+    "Glenmoor": [
+      {
+        "destination": "Stonepeak",
+        "distance": 6
+      },
+      {
+        "destination": "Kingsgate",
+        "distance": 7
+      }
+    ],
+    "Stonepeak": [
+      {
+        "destination": "Glenmoor",
+        "distance": 6
+      },
+      {
+        "destination": "Cairn",
+        "distance": 5
+      }
+    ],
+    "Cairn": [
+      {
+        "destination": "Stonepeak",
+        "distance": 5
+      },
+      {
+        "destination": "Ashby",
+        "distance": 6
+      }
+    ]
+  },
+  "zones": [
+    {
+      "name": "Northvale",
+      "locations": [
+        {
+          "name": "Frostford",
+          "pos": {
+            "x": 18,
+            "y": 10
+          }
+        },
+        {
+          "name": "Pinecrest",
+          "pos": {
+            "x": 36,
+            "y": 6
+          }
+        },
+        {
+          "name": "Northgate",
+          "pos": {
+            "x": 50,
+            "y": 14
+          }
+        }
+      ]
+    },
+    {
+      "name": "Harbor",
+      "locations": [
+        {
+          "name": "Saltmere",
+          "pos": {
+            "x": 24,
+            "y": 38
+          }
+        },
+        {
+          "name": "Harbor Quay",
+          "pos": {
+            "x": 12,
+            "y": 48
+          }
+        },
+        {
+          "name": "Lowtide",
+          "pos": {
+            "x": 30,
+            "y": 52
+          }
+        }
+      ]
+    },
+    {
+      "name": "Central",
+      "locations": [
+        {
+          "name": "Millbrook",
+          "pos": {
+            "x": 38,
+            "y": 28
+          }
+        },
+        {
+          "name": "Central",
+          "pos": {
+            "x": 50,
+            "y": 30
+          }
+        },
+        {
+          "name": "Ridgeway",
+          "pos": {
+            "x": 62,
+            "y": 32
+          }
+        },
+        {
+          "name": "Kingsgate",
+          "pos": {
+            "x": 50,
+            "y": 42
+          }
+        }
+      ]
+    },
+    {
+      "name": "Eastmarch",
+      "locations": [
+        {
+          "name": "Eastport",
+          "pos": {
+            "x": 86,
+            "y": 18
+          }
+        },
+        {
+          "name": "Marrow",
+          "pos": {
+            "x": 78,
+            "y": 30
+          }
+        },
+        {
+          "name": "Ashby",
+          "pos": {
+            "x": 90,
+            "y": 40
+          }
+        }
+      ]
+    },
+    {
+      "name": "Highlands",
+      "locations": [
+        {
+          "name": "Glenmoor",
+          "pos": {
+            "x": 62,
+            "y": 52
+          }
+        },
+        {
+          "name": "Stonepeak",
+          "pos": {
+            "x": 76,
+            "y": 50
+          }
+        },
+        {
+          "name": "Cairn",
+          "pos": {
+            "x": 88,
+            "y": 54
+          }
+        }
+      ]
+    }
+  ],
+  "services": [
+    {
+      "name": "Coastal Express",
+      "origin": "Harbor Quay",
+      "destination": "Eastport",
+      "departures": [
+        0,
+        12,
+        24
+      ]
+    },
+    {
+      "name": "Highland Flyer",
+      "origin": "Frostford",
+      "destination": "Cairn",
+      "departures": [
+        2,
+        14,
+        26
+      ]
+    },
+    {
+      "name": "Eastern Arrow",
+      "origin": "Ashby",
+      "destination": "Lowtide",
+      "departures": [
+        0,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "name": "Northern Link",
+      "origin": "Stonepeak",
+      "destination": "Pinecrest",
+      "departures": [
+        4,
+        18,
+        32
+      ]
+    },
+    {
+      "name": "Harbor Shuttle",
+      "origin": "Saltmere",
+      "destination": "Central",
+      "departures": [
+        0,
+        3,
+        6,
+        9
+      ]
+    },
+    {
+      "name": "Ring Line",
+      "origin": "Eastport",
+      "destination": "Glenmoor",
+      "departures": [
+        5,
+        15,
+        25
+      ]
+    },
+    {
+      "name": "Valley Local",
+      "origin": "Millbrook",
+      "destination": "Kingsgate",
+      "departures": [
+        1,
+        8
+      ]
+    },
+    {
+      "name": "Market Run",
+      "origin": "Marrow",
+      "destination": "Saltmere",
+      "departures": [
+        7,
+        35
+      ]
+    },
+    {
+      "name": "Night Mail",
+      "origin": "Lowtide",
+      "destination": "Northgate",
+      "departures": [
+        40,
+        50
+      ]
+    }
+  ]
+}
