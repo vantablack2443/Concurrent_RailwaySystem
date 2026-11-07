@@ -1,135 +1,103 @@
-# CP Project: Concurrency Bahn Simulation – Template ☕️ & 🦀
+# Concurrency Bahn 🚆🦀
 
-Reference implementation and template for the concurrent programming project 2026.
+**Zone-parallel railway simulation in Rust: one thread per zone, no locks, output identical to the sequential reference.**
 
-## Visualization 🗺️
+### ▶ [Live visualization](https://vantablack2443.github.io/Concurrent_RailwaySystem/)
 
-**Live page: https://vantablack2443.github.io/Concurrent_RailwaySystem/**
+Built for the Concurrent Programming course (Saarland University, SS 2026). The course provides
+the simulation model, a sequential reference implementation (Slug) and a test harness; the task
+is to parallelise it. **Our work is the [`train-sim-rocket`](crates/train-sim-rocket) crate.**
+Everything else is course material, kept so the project builds as a whole.
 
-An interactive replay that shows how the concurrent (Rocket) simulation works:
+## The simulation
 
-- a map with zones, stations and tracks, and trains moving, queuing for busy tracks and arriving,
-- one clock badge per zone thread showing its own local tick at the same moment,
-- a wall-clock timeline per thread: working vs. blocked, train handoffs, promises and max-tick broadcasts,
-- a log of the messages exchanged between threads,
-- a six-step guided tour, and a Slug vs Rocket comparison (same output, runtime).
+- **Stations** are nodes and **tracks** are directed edges with a travel time in ticks. A track
+  holds **one train at a time**; later trains queue at the station.
+- **Trains** route themselves: at every station they rerun Dijkstra over live costs (distance plus
+  how long the track is still occupied), then despawn at their destination.
+- **Zones** partition the stations, like countries. A train only sees traffic in its *current*
+  zone; tracks elsewhere cost `distance × international_penalty`.
 
-It replays a run recorded with the `viz` cargo feature, which makes every zone worker log its events
-into a thread-local buffer. The feature is off by default, so the normal build and `launch()` are unchanged.
+## How Rocket parallelises it
 
-| Command | What it does |
+| Idea | How |
 |---|---|
-| `just viz-record` | Records `scenarios/viz/island.json` and `europe_500` into `site/data/*.viz.json` |
-| `just viz-bench` | Times Slug vs Rocket, checks their outputs match, writes `site/data/bench.json` |
-| `just viz-serve` | Serves the page at http://localhost:8000 |
+| **Ownership, not locks** | Each `ZoneWorker` is moved into its own thread and owns its event queue, track occupancy and routing graph. Shared scenario data is immutable behind `Arc`. Coordination is `std::sync::mpsc` only. |
+| **Trains are messages** | Travel times are fixed, so the sending zone computes the arrival tick and sends `Message::TrainHandoff`; the receiver queues it directly. |
+| **Promises** | Each zone tells its neighbours "nothing arrives from me before tick X". A zone only processes tick *t* once every incoming neighbour has promised past it. This conservative synchronisation makes the output **bit-identical to Slug**, whatever the scheduling. |
+| **Global max tick** | A coordinator bounds how far zones may run and raises it only when a train is actually scheduled, so idle neighbours don't ratchet their clocks forever. |
+| **Termination** | Each zone knows how many trains end in it, counts down, and reports `Finished` once. The coordinator then broadcasts `Shutdown` to every zone directly, so zones unreachable along one-way tracks still stop. |
 
-The recording can also be done by hand:
+Two details mattered: a drained zone keeps advancing its clock so its promises keep rising, and a
+zone that can never receive anything again promises `Tick::MAX`.
 
-```bash
-cargo run --release -p train-sim --features viz -- \
-  --scenario scenarios/viz/island.json --out out.json --viz-out site/data/island.viz.json
-```
+## Results
 
-The page lives in `site/` (plain HTML, CSS and JavaScript modules, no build step). On every push to
-`main`, `.github/workflows/pages.yml` runs the tests, checks the `viz` build compiles and deploys
-`site/` to GitHub Pages (Settings → Pages → Source: *GitHub Actions*).
+| Scenario | Slug | Rocket | |
+|---|---|---|---|
+| Europe, 25 zones, 10 000 trains | 246 ms | 180 ms | **1.37× faster**, same stats |
+| Europe, 25 zones, 500 trains | 7 ms | 9 ms | same trace and stats |
 
-## Structure
+Median of 5 runs on 16 CPUs, simulation time only (`just viz-bench`). On small runs, starting
+threads costs more than it saves.
 
-This project is structured as follows:
+Beyond the provided tests, we ran **differential tests against Slug** on modified penalties,
+hand-built topologies (zones with no incoming tracks, isolated zones, pass-through zones, no
+trains) and random networks. They found two deadlocks the provided scenarios don't cover.
 
-- `crates/`: Rust crates of the project.
-  - `train-sim/`: Command line interface and main binary.
-  - `train-sim-core/`: Core data structures and algorithms.
-  - `train-sim-rocket/`: **Your Rust concurrent implementation goes here**.
-  - `train-sim-slug/`: Sequential reference implementation.
-  - `train-sim-tests/`: Public tests and testing infrastructure.
-- `site/`: The visualization page (see above), with recorded data in `site/data/`.
-- `scripts/viz_bench.py`: Slug vs Rocket benchmark for the page.
-- `src/main/java/cp26/`: Java source code of the project.
-  - `scenario/`: Data structures representing a scenario.
-  - `output/`: Data structures for writing the simulation output.
-  - `simulation/common/`: Useful simulation functionality.
-  - `simulation/rocket/`: **Your Java implementation goes here**.
-  - `simulation/slug/`: The sequential reference implementation.
-  - `validator/`: The validator interface.
-  - `Simulation.java`: Implements the `main` method.
-- `src/test/java/cp26/`: Public tests for the project.
-- `scenarios/`: Some sample scenarios; `scenarios/viz/` has the island scenario for the page.
+## Visualization
 
-We initialized the `project.toml` according to your language preferences, but in case you want to switch the programming language, it is possible there. If you implement the bonus, also enable the `bonus-implemented` flag there.
+The [live page](https://vantablack2443.github.io/Concurrent_RailwaySystem/) replays a recorded
+run: trains moving and queuing on a zone map, each zone thread's own clock, a wall-clock timeline
+of the threads with handoffs and promises, the message log, a six-step guided tour, and the Slug
+vs Rocket comparison.
 
-## Getting Started
-
-A detailed description on how to install Java and Rust can be found in the
-[forum](https://cp26.pseuco.com/t/how-to-project-in-vs-code/130).
-
-We recommend you use a proper *Integrated Development Environment* (IDE) for
-the project. A good option is [VS Code](https://code.visualstudio.com/). How to
-set up the project in VS Code is documented in
-[the same forum post](https://cp26.pseuco.com/t/how-to-project-in-vs-code/130).
-
-Which IDE or editor you use is up to you. However, we only provide help for
-VS Code. In case you use some other code editor, do not expect help.
-
-## Running the Project
-
-### Java ☕
-
-We use [Gradle](https://gradle.org/) to build the project.
-To build the Javadoc run:
+> **Made with Claude.** The visualization was built with Claude (Anthropic's AI assistant): the page
+> in [`site/`](site), the off-by-default `viz` cargo feature that records worker events, the island
+> scenario, the benchmark script and the Pages workflow. The simulation itself is our own work.
 
 ```bash
-./gradlew javaDoc
+just viz-record   # record the island and europe_500 runs into site/data
+just viz-bench    # time Slug vs Rocket and check outputs match
+just viz-serve    # serve the page at http://localhost:8000
 ```
 
-Afterwards you find the documentation in `build/docs`.
-
-To build a `simulation.jar`-File for your project run:
+## Running
 
 ```bash
-./gradlew jar
+cargo build --release
+cargo run --release -p train-sim -- --scenario scenarios/public/europe.json --out out.json
+cargo run --release -p train-sim -- --slug --scenario scenarios/public/europe.json --out slug.json
+cargo test --release -p train-sim-tests -- --test-threads=1
 ```
 
-You find the compiled `.jar`-File in `out`.
+`--slug` runs the sequential reference, useful for diffing. `--test-threads=1` keeps the tests
+from competing with the simulation for cores.
 
-To run the *public* tests on your project run:
+## Known limitations
 
-```bash
-./gradlew test
+- **Message volume.** Promises are O(arrivals × neighbours); most overhead is channel traffic,
+  so the speedup is modest.
+- **Time creep.** Across long gaps with no events, zones advance by the shortest border track per
+  round of messages, so long timelines with short border tracks are slow.
+- **Panics hang.** A panicking worker leaves the coordinator waiting, since the other workers
+  keep the report channel open.
+
+## Layout
+
 ```
-
-### Rust 🦀
-
-Remember, Cargo is your friend:
-
-- `cargo build` builds the project.
-- `cargo doc` generates API documentation. `cargo doc --open` additionally opens the generated documentation in a web browser.
-- `cargo test --release -- --test-threads=1` runs the tests. Note that the `--test-threads=1` is there to not interfere with the performance of the simulation, given that `cargo` run test concurrently by default.
-
-We will use Rust 1.96.1 to test your code.
-
-## For Convenience: A `justfile` 🎉
-
-We provide a [`justfile`](https://just.systems/man/en/). To install `just` via Cargo, run `cargo install just`. You can then run tests simply with `just test`. Note that our `.gitlab-ci.yml` also uses `just`. A complete list of available commands can be obtained via `just help` or `just list`:
-
-``` md
-    build      # Build the project
-    doc        # Generate API documentation
-    doc-open   # Generate API documentation and open it in your web browser
-    help       # Print available recipes
-    lang       # Get the detected programming language
-    lint       # Run clippy on Rust code
-    list       # Print available recipes
-    run *FLAGS # Build and run the project
-    test       # Run the tests 
+crates/
+  train-sim-rocket/   our concurrent implementation
+    lib.rs              coordinator: zones, channels, max tick, termination
+    worker.rs           per-zone loop: promises, routing, statistics
+    network.rs          station/zone indices, neighbours, penalised graph
+    event.rs            TrainArrival and its ordering
+    viz.rs              optional event recording (made with Claude)
+  train-sim/          CLI                                   (course)
+  train-sim-core/     scenario/output types, Dijkstra       (course)
+  train-sim-slug/     sequential reference                  (course)
+  train-sim-tests/    public tests and harness              (course)
+scenarios/            sample scenarios; viz/ has the island (course / Claude)
+site/                 visualization page                    (Claude)
+src/                  Java template                         (course, unused)
 ```
-
-To build and open the documentation, run `just doc-open`.
-
-## Integrated Development Environment
-
-We recommend you use a proper *Integrated Development Environment* (IDE) for this project. A good open source IDE is [VS Code](https://code.visualstudio.com/). Which IDE or editor you use is up to you. However, we only provide help for VS Code. In case you use something else, do not expect help.
-
-In case you decide to use VS Code, open the `train-simulator.code-workspace` workspace. After opening the workspace, VS Code should ask you whether you want to install the *recommended extensions*. For maximal convenience, please do so.
-In particular, the *Rust Analyzer* extension is highly recommended.
