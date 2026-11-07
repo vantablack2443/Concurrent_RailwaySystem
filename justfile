@@ -65,3 +65,7 @@ viz-record:
 viz-bench:
     cargo build --release -p train-sim
     python3 scripts/viz_bench.py
+
+# Serve the visualization page at http://localhost:8000
+viz-serve:
+    python3 -m http.server 8000 -d site
