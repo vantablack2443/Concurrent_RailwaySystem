@@ -1,7 +1,0 @@
-[workspace]
-resolver = "2"
-members = ["crates/*"]
-
-[profile.release-with-debug]
-inherits = "release"
-debug = "line-tables-only"
