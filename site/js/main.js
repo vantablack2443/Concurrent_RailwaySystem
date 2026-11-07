@@ -1,8 +1,10 @@
 import { escapeHtml, loadScenario } from "./data.js";
 import { Clock } from "./clock.js";
 import { buildConcurrency } from "./concurrency.js";
+import { renderCompare } from "./compare.js";
 import { createProjection, renderMap, zoneColor } from "./map.js";
 import { Swimlanes, formatWall } from "./swimlanes.js";
+import { createTour } from "./tour.js";
 import { TrainLayer } from "./trains.js";
 import { drawZoneBadges } from "./zones.js";
 
@@ -26,6 +28,8 @@ const state = {
   zoneRows: [],
   tooltipHtml: "",
   logKey: "",
+  pinned: -1,
+  current: null,
 };
 
 const clock = new Clock((tick, now) => frame(tick, now));
@@ -42,6 +46,9 @@ function layout() {
 new ResizeObserver(layout).observe(mapBox);
 
 async function show(name) {
+  if (name === state.current) return;
+  state.current = name;
+  $("scenario").value = name;
   $("loading").hidden = false;
   clock.pause();
   try {
@@ -53,6 +60,7 @@ async function show(name) {
   $("loading").hidden = true;
   state.conc = buildConcurrency(state.model);
   state.logKey = "";
+  state.pinned = -1;
   lanes.setData(state.model, state.conc);
   layout();
   buildZoneList();
@@ -72,9 +80,9 @@ function frame(tick, now) {
   const wall = conc.wallAtTick(tick);
   const zoneStates = model.zones.map((_, z) => conc.laneAt(z, wall));
   const hover = lanes.hoverTrain >= 0 ? lanes.hoverTrain : state.hoverId;
-  state.hits = trains.draw(model, proj, tick, now, hover);
+  state.hits = trains.draw(model, proj, tick, now, hover, state.pinned);
   drawZoneBadges(trains.ctx, model, proj, zoneStates, badgeColors());
-  lanes.draw(wall, state.hoverId);
+  lanes.draw(wall, state.hoverId >= 0 ? state.hoverId : state.pinned);
   $("wall").textContent = formatWall(wall - conc.startWall);
   updateZoneList(zoneStates);
   updateLog(wall);
@@ -101,7 +109,8 @@ function syncControls() {
   playBtn.classList.toggle("playing", clock.playing);
   playBtn.setAttribute("aria-label", clock.playing ? "Pause" : "Play");
   if (document.activeElement !== scrub) scrub.value = clock.tick;
-  tickOut.textContent = `t = ${clock.tick.toFixed(1)} / ${state.model?.endTick ?? 0}`;
+  const end = state.model?.endTick ?? 0;
+  tickOut.textContent = `t = ${Math.min(clock.tick, end).toFixed(1)} / ${end}`;
 }
 
 playBtn.addEventListener("click", () => clock.toggle());
@@ -252,6 +261,16 @@ mapBox.addEventListener("pointermove", (e) => {
 mapBox.addEventListener("pointerleave", () => {
   state.mouse = null;
 });
+// Click a train to pin it and show its route; click elsewhere to unpin.
+mapBox.addEventListener("click", (e) => {
+  const rect = mapBox.getBoundingClientRect();
+  const hit = nearest(state.hits.filter((h) => !h.queue), (h) => [h.x, h.y], [e.clientX - rect.left, e.clientY - rect.top], 12);
+  pinTrain(hit && hit.train.id !== state.pinned ? hit.train.id : -1);
+});
+
+function pinTrain(id) {
+  state.pinned = id;
+}
 
 function nearest(items, pos, [mx, my], radius) {
   let best = null;
@@ -332,3 +351,22 @@ const initial = new URLSearchParams(location.search).get("s");
 const select = $("scenario");
 if (initial && [...select.options].some((o) => o.value === initial)) select.value = initial;
 show(select.value);
+renderCompare($("compare"));
+
+const FOCUSABLE = ["map", "lanes-card", "zones-card", "log-card", "compare"];
+createTour($("tour"), {
+  show,
+  seek: (tick) => clock.seek(Math.min(tick, clock.end)),
+  pause: () => clock.pause(),
+  play: () => clock.play(),
+  pin: (label) => pinTrain(label ? state.model.trains.findIndex((t) => t.label === label) : -1),
+  setPromises: (on) => ($("show-promises").checked = on),
+  focus: (ids) => {
+    for (const id of FOCUSABLE) $(id).classList.toggle("tour-focus", ids.includes(id));
+    // On one column the tour is a bottom sheet, so bring the panel to the top.
+    const narrow = matchMedia("(max-width: 860px)").matches;
+    if (ids.length) {
+      $(ids[0]).scrollIntoView({ block: narrow ? "start" : "nearest", behavior: narrow ? "auto" : "smooth" });
+    }
+  },
+});

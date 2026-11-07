@@ -43,12 +43,14 @@ export class TrainLayer {
 
   /**
    * Draws all trains at tick `t` and returns their screen positions for hit
-   * testing. `now` (ms) drives pulse animations.
+   * testing. `now` (ms) drives pulse animations. The route of `pinnedId` is
+   * drawn as a dashed line.
    */
-  draw(model, proj, t, now, hoverId) {
+  draw(model, proj, t, now, hoverId, pinnedId = -1) {
     const { ctx, colors } = this;
     const u = proj.unit;
     ctx.clearRect(0, 0, proj.width, proj.height);
+    if (pinnedId >= 0) this.drawRoute(model.trains[pinnedId], proj, t);
 
     const moving = [];
     const waitingAt = new Map();
@@ -83,8 +85,9 @@ export class TrainLayer {
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fillStyle = `hsl(${train.hue} 70% 46%)`;
       ctx.fill();
-      ctx.lineWidth = 1.6 * u;
-      ctx.strokeStyle = train.id === hoverId ? colors.ink : colors.station;
+      const marked = train.id === hoverId || train.id === pinnedId;
+      ctx.lineWidth = (marked ? 2.4 : 1.6) * u;
+      ctx.strokeStyle = marked ? colors.ink : colors.station;
       ctx.stroke();
     };
 
@@ -132,6 +135,38 @@ export class TrainLayer {
     }
 
     return hits;
+  }
+
+  /** Dashed route of a train: done part solid-ish, rest dashed. */
+  drawRoute(train, proj, t) {
+    const { ctx } = this;
+    const u = proj.unit;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 3.2 * u;
+    for (const move of train.moves) {
+      const [x1, y1] = proj.points[move.from];
+      const [x2, y2] = proj.points[move.to];
+      const done = t >= move.arrive;
+      ctx.setLineDash(done ? [] : [6 * u, 5 * u]);
+      ctx.strokeStyle = `hsl(${train.hue} 75% 55% / ${done ? 0.35 : 0.9})`;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    const last = train.moves[train.moves.length - 1];
+    if (last) {
+      const [dx, dy] = proj.points[last.to];
+      ctx.beginPath();
+      ctx.arc(dx, dy, 8 * u, 0, Math.PI * 2);
+      ctx.strokeStyle = `hsl(${train.hue} 75% 55%)`;
+      ctx.lineWidth = 2 * u;
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   queueBadge(x, y, count, u, pulse) {

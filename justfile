@@ -60,3 +60,8 @@ viz-record:
     mkdir -p site/data target/viz
     ./target/release/train-sim --scenario scenarios/viz/island.json --out target/viz/island.out.json --viz-out site/data/island.viz.json
     ./target/release/train-sim --scenario scenarios/public/europe_500.json --out target/viz/europe_500.out.json --viz-out site/data/europe_500.viz.json
+
+# Benchmark Slug vs Rocket for the compare panel (writes site/data/bench.json)
+viz-bench:
+    cargo build --release -p train-sim
+    python3 scripts/viz_bench.py

@@ -1,0 +1,33 @@
+{
+  "cpus": 16,
+  "runs": 5,
+  "scenarios": [
+    {
+      "name": "Island",
+      "zones": 5,
+      "traced": true,
+      "traceEqual": true,
+      "statsEqual": true,
+      "slugMs": 0,
+      "rocketMs": 0
+    },
+    {
+      "name": "Europe (500 trains)",
+      "zones": 25,
+      "traced": true,
+      "traceEqual": true,
+      "statsEqual": true,
+      "slugMs": 7,
+      "rocketMs": 9
+    },
+    {
+      "name": "Europe (10 000 trains)",
+      "zones": 25,
+      "traced": false,
+      "traceEqual": true,
+      "statsEqual": true,
+      "slugMs": 246,
+      "rocketMs": 180
+    }
+  ]
+}
