@@ -32,7 +32,17 @@ export function createProjection(model, width, height) {
   const ox = (width - gw * scale) / 2 - minX * scale;
   const oy = (height - gh * scale) / 2 - minY * scale;
   const points = model.stations.map((s) => [ox + s.x * scale, oy + s.y * scale]);
+  // Zone label position: centroid of the zone's stations.
+  const zoneAnchors = model.zones.map((zone) => {
+    if (zone.stations.length === 0) return null;
+    const n = zone.stations.length;
+    return [
+      zone.stations.reduce((sum, i) => sum + points[i][0], 0) / n,
+      zone.stations.reduce((sum, i) => sum + points[i][1], 0) / n,
+    ];
+  });
   return {
+    zoneAnchors,
     width,
     height,
     scale,
@@ -161,9 +171,9 @@ export function renderMap(svg, model, proj) {
 
   // Zone names at the centroid of their stations, nudged below the stations.
   for (const zone of model.zones) {
-    if (zone.stations.length === 0) continue;
-    const cx = zone.stations.reduce((s, i) => s + points[i][0], 0) / zone.stations.length;
-    const cy = zone.stations.reduce((s, i) => s + points[i][1], 0) / zone.stations.length;
+    const anchor = proj.zoneAnchors[zone.id];
+    if (!anchor) continue;
+    const [cx, cy] = anchor;
     const text = el("text", {
       x: cx,
       y: cy + (showLabels ? 26 : 4),

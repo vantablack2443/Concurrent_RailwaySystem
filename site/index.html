@@ -51,6 +51,18 @@
           <option value="8">8×</option>
         </select>
       </div>
+
+      <section class="card lanes-card" aria-label="Thread timeline">
+        <div class="lanes-head">
+          <h2>Threads · wall-clock</h2>
+          <output id="wall" class="tick">0 µs</output>
+        </div>
+        <p class="hint">One lane per zone thread. <b>Solid</b> = working, <b>faint</b> = blocked waiting for a message. Curves are train handoffs between threads; marks on top are promises sent. Zones run at different ticks at the same moment. Click to jump.</p>
+        <div class="lanes" id="lanes">
+          <canvas id="lanes-canvas"></canvas>
+          <div class="tooltip" id="lanes-tooltip" hidden></div>
+        </div>
+      </section>
     </section>
 
     <aside class="side">
@@ -58,6 +70,14 @@
         <h2>Zones</h2>
         <p class="hint">Each zone is simulated by its own thread.</p>
         <ul class="zones" id="zones"></ul>
+      </section>
+
+      <section class="card">
+        <div class="lanes-head">
+          <h2>Messages</h2>
+          <label class="toggle"><input type="checkbox" id="show-promises"> promises</label>
+        </div>
+        <ol class="log" id="log"></ol>
       </section>
 
       <section class="card">

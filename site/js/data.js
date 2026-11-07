@@ -4,6 +4,10 @@
 /** Ticks a train stays visible at its destination after arriving. */
 export const ARRIVAL_FADE = 2;
 
+export function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
 export async function loadScenario(name) {
   const res = await fetch(`data/${name}.viz.json`);
   if (!res.ok) throw new Error(`Could not load data/${name}.viz.json (${res.status})`);
