@@ -10,8 +10,10 @@ use crate::worker::{SharedContext, WorkerResult, ZoneWorker};
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::network::RailwayNetwork;
+use crate::viz::{Epoch, Recorder, VizKind, VizLog};
 mod event;
 mod network;
+pub mod viz;
 mod worker;
 
 /// Messages sent between zone workers via channels.
@@ -80,9 +82,17 @@ pub fn launch(scenario: Scenario, validator: Arc<dyn Validator>, starship: bool)
         // Begin implementing your concurrent implementation here.
 
         let rocket = Rocket::new(scenario, validator);
-        rocket.run()
+        rocket.run().0
     }
 }
+
+/// Runs the concurrent implementation like [`launch`] and additionally
+/// returns the events recorded for the visualization page.
+#[cfg(feature = "viz")]
+pub fn launch_with_viz(scenario: Scenario, validator: Arc<dyn Validator>) -> (Output, VizLog) {
+    Rocket::new(scenario, validator).run()
+}
+
 struct Rocket {
     /// Kept only so `run` can move it into the final [`Output`]. Every zone
     /// worker holds its own `Arc` clone via `SharedContext`, so by the time
@@ -108,6 +118,9 @@ struct Rocket {
 
     /// One worker per zone, running on its own thread. They have channels between connected zones
     zoneworkers: Vec<ZoneWorker>,
+
+    /// Time origin for recorded visualization events (no-op without `viz`).
+    epoch: Epoch,
 }
 
 /// Implementation of the concurrent simulation. This creates the workers,
@@ -120,6 +133,7 @@ impl Rocket {
         let penalty_graph = Arc::new(network.build_graph(&scenario));
 
         let scenario = Arc::new(scenario);
+        let epoch = Epoch::now();
 
         // Start the max tick past the last departure so every initial event is
         // already within it and no zone has to ask before it can begin.
@@ -138,6 +152,7 @@ impl Rocket {
             graph: penalty_graph,
             validator: validator.clone(),
             initial_max_tick,
+            epoch,
         };
 
         let zone_count = network.zone_count();
@@ -173,10 +188,11 @@ impl Rocket {
             done_rx,
             initial_max_tick,
             zoneworkers,
+            epoch,
         }
     }
 
-    fn run(self) -> Output {
+    fn run(self) -> (Output, VizLog) {
         let num_zones = self.zoneworkers.len();
         let mut handles: Vec<JoinHandle<WorkerResult>> = Vec::with_capacity(num_zones);
 
@@ -188,6 +204,7 @@ impl Rocket {
         // BLOCKS HERE
         // Waits for worker reports and broadcasts max tick updates to all workers as needed.
         // Once every zone has reported `Finished`, the simulation is done and we can exit this loop.
+        let mut viz = Recorder::new(viz::MAIN_THREAD, self.epoch);
         let mut zones_done = 0;
         let mut global_max_tick = self.initial_max_tick;
         while zones_done < num_zones {
@@ -196,6 +213,7 @@ impl Rocket {
                 Ok(WorkersSignal::ExtendMaxTick(tick)) => {
                     if tick > global_max_tick {
                         global_max_tick = tick;
+                        viz.record(tick, VizKind::MaxTickBroadcast { tick });
                         for sender in &self.all_senders {
                             let _ = sender.send(Message::MaxTick(tick));
                         }
@@ -207,6 +225,7 @@ impl Rocket {
         }
 
         // (After trains despawned above) - broadcast a shutdown message to every zone worker, so they can exit their loops and join.
+        viz.record(global_max_tick, VizKind::ShutdownBroadcast);
         for sender in &self.all_senders {
             let _ = sender.send(Message::Shutdown);
         }
@@ -214,29 +233,33 @@ impl Rocket {
         // Join all threads.  Collects statistics and traces
         let mut all_traces = Vec::new();
         let mut all_statistics = HashMap::new();
+        let mut viz_log = VizLog::new(self.epoch);
+        viz_log.absorb(viz.into_events());
         for handle in handles {
             let result: WorkerResult = handle.join().expect("zone worker thread panicked");
             all_traces.extend(result.trace);
             if let Some((zone_name, log)) = result.statistics {
                 all_statistics.insert(zone_name, log);
             }
+            viz_log.absorb(result.viz);
         }
 
         // Sort traces by tick .
         all_traces.sort_by_key(|entry| entry.tick);
 
-        Output {
+        let output = Output {
             scenario: Arc::unwrap_or_clone(self.scenario),
             trace: all_traces,
             statistics: all_statistics,
-        }
+        };
+        (output, viz_log.finish())
     }
 }
 
 /// Creates a list of all trains in the scenario. Each train's position in
 /// this list is its unique ID. The list is shared with all zone workers.
 // Taken from Slug (`Slug::new`'s train_count).
-fn build_trains(scenario: &Scenario, network: &RailwayNetwork) -> Vec<Train> {
+pub(crate) fn build_trains(scenario: &Scenario, network: &RailwayNetwork) -> Vec<Train> {
     let train_count = scenario.services.iter().map(|t| t.departures.len()).sum();
     let mut trains = Vec::with_capacity(train_count);
     for service in &scenario.services {
